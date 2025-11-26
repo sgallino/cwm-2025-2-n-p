@@ -1,0 +1,39 @@
+<script setup>
+import AppH1 from '../components/AppH1.vue';
+import useAuthUserState from '../composables/useAuthUserState';
+import { getFileURL } from '../services/storage';
+
+const user = useAuthUserState();
+</script>
+
+<template>
+    <div class="flex items-end gap-4">
+        <AppH1>Mi perfil</AppH1>
+        <RouterLink to="/mi-perfil/editar" class="mb-4 text-blue-700 underline">Editar</RouterLink>
+        <RouterLink to="/mi-perfil/editar/foto" class="mb-4 text-blue-700 underline">Editar mi foto</RouterLink>
+    </div>
+
+    <div class="flex gap-4">
+        <div class="w-1/4">
+            <img 
+                v-if="user.photo_url"
+                :src="getFileURL(user.photo_url)" 
+                alt=""
+            >
+            <span v-else>Sin foto de perfil</span>
+            <!-- TODO: Mostrar una foto por defecto. -->
+        </div>
+        <div class="w-3/4">
+            <div class="ms-4 my-6 text-gray-800 italic">{{ user.bio ?? 'Sin especificar...' }}</div>
+
+            <dl>
+                <dt class="font-bold">Email</dt>
+                <dd class="mb-2">{{ user.email }}</dd>
+                <dt class="font-bold">Nombre</dt>
+                <dd class="mb-2">{{ user.display_name ?? 'Sin especificar...' }}</dd>
+                <dt class="font-bold">Carrera</dt>
+                <dd class="mb-2">{{ user.career ?? 'Sin especificar...' }}</dd>
+            </dl>
+        </div>
+    </div>
+</template>

@@ -1,0 +1,129 @@
+<script setup>
+import AppH1 from '../components/AppH1.vue';
+import AppLoader from '../components/AppLoader.vue';
+import AppButton from '../components/AppButton.vue';
+import { fetchPrivateChatLastMessages, sendPrivateChatMessage, subscribeToPrivateChatNewMessages } from '../services/private-chat';
+import useAuthUserState from '../composables/useAuthUserState';
+import { useRoute } from 'vue-router';
+import useUserProfile from '../composables/useUserProfile';
+import { nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import { useScrollToBottom } from '../composables/useScrollToBottom';
+import { formatDate } from '../helpers/date';
+
+const route = useRoute();
+
+const user = useAuthUserState();
+const { user: otherUser, loading: loadingUser } = useUserProfile(route.params.id);
+const { messages, loadingMessages } = usePrivateChatMessages(user, route.params.id);
+const { newMessage, handleSubmit } = usePrivateChatMessageForm(user, route.params.id);
+
+// Composables locales
+function usePrivateChatMessages(user, otherId) {
+    let unsubscribeFromChat = () => {};
+
+    const messages = ref([]);
+    const loadingMessages = ref(false);
+
+    onMounted(async () => {
+        try {
+            // const chatContainer = useTemplateRef('chatContainer');
+            const { scrollToBottom } = useScrollToBottom('chatContainer');
+            loadingMessages.value = true;
+
+            unsubscribeFromChat = await subscribeToPrivateChatNewMessages(
+                user.value.id,
+                otherId,
+                async newMessage => {
+                    messages.value.push(newMessage);
+        
+                    scrollToBottom();
+                });
+            
+            fetchPrivateChatLastMessages(user.value.id, otherId)
+                .then(async newMessages => {
+                    messages.value = newMessages;
+                    loadingMessages.value = false;
+                
+                    scrollToBottom();
+                });
+        } catch (error) {
+            loadingMessages.value = false;
+        }
+    });
+
+    onUnmounted(() => unsubscribeFromChat());
+
+    return {
+        messages,
+        loadingMessages,
+    }
+}
+
+function usePrivateChatMessageForm(user, otherId) {
+    const newMessage = ref({
+        content: '',
+    });
+
+    async function handleSubmit() {
+        try {
+            await sendPrivateChatMessage(
+                user.value.id,
+                otherId,
+                newMessage.value.content,
+            );
+        } catch (error) {
+            // TODO ...
+        }
+
+        newMessage.value.content = '';
+    }
+
+    return {
+        newMessage,
+        handleSubmit,
+    }
+}
+</script>
+
+<template>
+    <AppH1>Chat privado con {{ otherUser.email }}</AppH1>
+
+    <section class="overflow-y-auto h-100 p-4 mb-4 border border-gray-200 rounded" ref="chatContainer">
+        <h2 class="sr-only">Lista de mensajes</h2>
+        <template v-if="!loadingMessages">
+            <ol class="flex flex-col items-start gap-4">
+                <li
+                    v-for="message in messages"
+                    :key="message.id"
+                    class="p-4 rounded"
+                    :class="{
+                        'bg-gray-100': user.id !== message.sender_id,
+                        'self-end bg-green-100': user.id === message.sender_id,
+                    }"
+                >
+                    <div class="mb-1">{{ message.content }}</div>
+                    <div class="text-sm text-gray-700">{{ formatDate(message.created_at) }}</div>
+                </li>
+            </ol>
+        </template>
+        <template v-else>
+            <AppLoader />
+        </template>
+    </section>
+    <section>
+        <h2 class="sr-only">Enviar un mensaje</h2>
+        <form
+            action="#"
+            class="flex gap-4 items-stretch"
+            @submit.prevent="handleSubmit"
+        >
+            <label for="content" class="sr-only">Mensaje</label>
+            <textarea
+                id="content"
+                class="w-full p-2 border border-gray-300 rounded"
+                v-model="newMessage.content"
+            ></textarea>
+            <AppButton type="submit">Enviar</AppButton>
+        </form>
+    </section>
+</template>
